@@ -5,22 +5,14 @@ from threading import Thread, Lock, Event
 
 HORIZONTAL_PADDING = 10
 VERTICAL_PADDING = 10
-WINDOW_GEOMETRY = '600x800'
+WINDOW_GEOMETRY = '500x600'
 FOREGROUND_COLOR = 'white'
-BACKGROUND_COLOR = 'black'
+BACKGROUND_COLOR = 'grey'
 FONT = ('Courier', 15)
 
-BUTTON_ENTER = "Press to Continue"
-
-INVALID = "INPUT INVALID!"
-PROCESSING = "PROCESSING ;)"
-
-THICK_DIVIDER = "\n==============================\n"
+BUTTON_ENTER = "Continue"
 THIN_DIVIDER = "\n------------------------------\n"
-MICRO_DIVIDER = "\n---------------\n"
-TEENY_DIVIDER = "\n-----\n"
-THICK_SEPARATOR = "||"
-THIN_SEPARATOR = "|"
+
 
 
 class Display(Thread):
@@ -51,7 +43,7 @@ class Display(Thread):
         self.text_box = tkst.ScrolledText(master=self.text_frame, font=FONT,
                                           bg=BACKGROUND_COLOR, fg=FOREGROUND_COLOR,
                                           width=60, height=30, wrap=WORD)
-        self.buttons = ButtonSet(self.window, event=self.event)
+        self.inputs = ButtonSet(self.window, event=self.event)
 
         self.text_frame.pack(fill=BOTH, expand=YES)
         self.text_box.pack(padx=HORIZONTAL_PADDING, pady=VERTICAL_PADDING,
@@ -68,39 +60,29 @@ class Display(Thread):
             self.string = string
         self.redraw()
 
-    def input(self, string='', prompt='', options=None):
+    def input(self, string='', options=None):
         with self.lock:
-            self.buttons.clear_buttons()
-            self.string = THICK_DIVIDER + '\n' + string
-            if '' != prompt:
-                self.string += '\n' + THICK_SEPARATOR
-                self.string += '  ' + prompt + '\n'
+            self.inputs.clear_buttons()
+            self.string = '\n' + string
+
             if options:
                 for option in options:
-                    self.buttons.add_button(option)
+                    self.inputs.add_button(option)
                 self.buttons_active = True
                 self.redraw()
-                value = self.buttons.harvest()
+                value = self.inputs.harvest()
             else:
-                pass
-                #TODO text input
-
-        self.processing()
+                self.inputs.add_text_field()
+                self.buttons_active = True
+                self.redraw()
+                value = self.inputs.harvest()
         return value
-
-    def processing(self):
-        self.string += '\n\n' + THICK_DIVIDER + '\n' + PROCESSING
-        self.buttons_active = False
-        self.redraw()
-
-    def log(self, string):
-        self.logs.append('LOG:\n' + string)
 
     def redraw(self):
         if self.buttons_active:
-            self.buttons.pack()
+            self.inputs.pack()
         else:
-            self.buttons.unpack()
+            self.inputs.unpack()
 
         self.text_box.configure(state=NORMAL)
         self.text_box.delete(1.0, END)
@@ -109,7 +91,7 @@ class Display(Thread):
 
 
 class ButtonSet:
-    def __init__(self, window, event=None):
+    def __init__(self, window, event):
         self.window = window
 
         self.buttons = []
@@ -128,6 +110,14 @@ class ButtonSet:
                         command=(lambda: self.plant(string)))
         self.buttons.append(button)
 
+    def add_text_field(self):
+        entry = Entry(self.window)
+        button = Button(self.window, text=BUTTON_ENTER, font=FONT,
+                        bg=BACKGROUND_COLOR, fg=FOREGROUND_COLOR,
+                        command=(lambda: self.plant(entry.get())))
+        self.buttons.append(entry)
+        self.buttons.append(button)
+
     def pack(self):
         for button in self.buttons:
             button.pack()
@@ -138,14 +128,11 @@ class ButtonSet:
 
     def plant(self, seed):
         self.result = seed
-        if self.event is not None:
-            self.event.set()
+        self.event.set()
 
     def harvest(self):
-        if self.event is not None:
-            self.event.wait()
-            self.event.clear()
-
+        self.event.wait()
         result = self.result
         self.result = None
+        self.event.clear()
         return result
